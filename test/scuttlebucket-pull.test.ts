@@ -1,4 +1,4 @@
-import { Model, ReliableEvent, link } from '@jacobbubu/scuttlebutt-pull'
+import { Model, ReliableEvent, link, ScuttlebuttOptions } from '@jacobbubu/scuttlebutt-pull'
 import { Scuttlebucket } from '../src/'
 import { delay } from './utils'
 
@@ -9,8 +9,11 @@ describe('Scuttlebucket', () => {
     value2: 'bar2'
   }
 
-  function create() {
-    return new Scuttlebucket().add('meta', new Model()).add('event', new ReliableEvent())
+  function create(opts?: ScuttlebuttOptions) {
+    return new Scuttlebucket(opts)
+      .add('meta', new Model())
+      .add('event', new ReliableEvent())
+      .add('config', new Model())
   }
 
   it('bucket with model', async () => {
@@ -118,5 +121,57 @@ describe('Scuttlebucket', () => {
 
     expect(aFired).toHaveBeenCalledTimes(1)
     expect(bFired).toHaveBeenCalledTimes(1)
+  })
+
+  it('accepted with whitelist', async () => {
+    const accept = { whitelist: ['meta'] }
+    const bucketA = create()
+    const bucketB = create({ accept })
+
+    const metaAtA: Model = bucketA.get('meta') as Model
+    const configAtA: Model = bucketA.get('config') as Model
+    const metaAtB: Model = bucketB.get('meta') as Model
+    const configAtB: Model = bucketB.get('config') as Model
+
+    metaAtA.set(expected.key, expected.value)
+    configAtA.set(expected.key, expected.value)
+
+    const s1 = bucketA.createStream()
+    const s2 = bucketB.createStream()
+
+    link(s1, s2)
+
+    await delay(10)
+
+    expect(metaAtA.get(expected.key)).toBe(expected.value)
+    expect(configAtA.get(expected.key)).toBe(expected.value)
+    expect(metaAtB.get(expected.key)).toBe(expected.value)
+    expect(configAtB.get(expected.key)).toBeUndefined()
+  })
+
+  it('accepted with blacklist', async () => {
+    const accept = { blacklist: ['config'] }
+    const bucketA = create()
+    const bucketB = create({ accept })
+
+    const metaAtA: Model = bucketA.get('meta') as Model
+    const configAtA: Model = bucketA.get('config') as Model
+    const metaAtB: Model = bucketB.get('meta') as Model
+    const configAtB: Model = bucketB.get('config') as Model
+
+    metaAtA.set(expected.key, expected.value)
+    configAtA.set(expected.key, expected.value)
+
+    const s1 = bucketA.createStream()
+    const s2 = bucketB.createStream()
+
+    link(s1, s2)
+
+    await delay(10)
+
+    expect(metaAtA.get(expected.key)).toBe(expected.value)
+    expect(configAtA.get(expected.key)).toBe(expected.value)
+    expect(metaAtB.get(expected.key)).toBe(expected.value)
+    expect(configAtB.get(expected.key)).toBeUndefined()
   })
 })

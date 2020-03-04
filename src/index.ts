@@ -6,6 +6,11 @@ export enum ScuttlebucketValueItems {
   OriginalValue
 }
 
+export interface ScuttlebucketAccept {
+  whitelist?: string[]
+  blacklist?: string[]
+}
+
 function setId(obj: Scuttlebutt, id: string) {
   obj.setId(id)
   return obj
@@ -63,6 +68,24 @@ export class Scuttlebucket extends Scuttlebutt {
     return this
   }
 
+  _isAcceptedName(peerAccept: ScuttlebucketAccept, name: string) {
+    const { blacklist, whitelist } = peerAccept
+    if (blacklist && Array.isArray(blacklist)) {
+      if (blacklist.includes(name)) {
+        return false
+      }
+    }
+    if (whitelist && Array.isArray(whitelist)) {
+      return whitelist.includes(name) ? true : false
+    }
+    return true
+  }
+
+  isAccepted(peerAccept: ScuttlebucketAccept, update: Update) {
+    const name = update[UpdateItems.Data][ScuttlebucketValueItems.Name]
+    return this._isAcceptedName(peerAccept, name)
+  }
+
   applyUpdate(update: Update) {
     const newUpdate = [...update] as Update
 
@@ -84,13 +107,15 @@ export class Scuttlebucket extends Scuttlebutt {
     return true
   }
 
-  history(sources: Sources) {
+  history(sources: Sources, peerAccept?: ScuttlebucketAccept) {
     const h: Update[] = []
     const self = this
     for (let name in this._parts) {
-      this._parts[name].history(sources).forEach(function(update: Update) {
-        h.push(self._wrap(name, update))
-      })
+      if (!peerAccept || this._isAcceptedName(peerAccept, name)) {
+        this._parts[name].history(sources).forEach(function(update: Update) {
+          h.push(self._wrap(name, update))
+        })
+      }
     }
     return h.sort(function(a, b) {
       return (
